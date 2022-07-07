@@ -105,7 +105,7 @@ int main(void) {
 
     // wgetch(arena);
     //mvwaddch(arena, y, x, 'a');
-    snake = initializeSnake(arena, x, y);
+    snake = initializeSnake(arena, x, y, down);
     Snake* tail = getTail(arena, snake);
     x = tail->x;
     y = tail->y;

@@ -1,46 +1,44 @@
 #include "playerSnake.h"
 #include <stdlib.h>
+#include <stdio.h>
 
-//Initialize list to head node
-Snake *initializeSnake(WINDOW* win, int x, int y){
-    Snake *head = NULL;
+enum direction{up, down, left, right};
 
-    head = (Snake *) malloc(sizeof(Snake));
-    if(head == NULL){
+//Initialize list to tail node
+Snake *initializeSnake(int x, int y, int dir){
+    Snake *tail = NULL;
+
+    tail = (Snake *) malloc(sizeof(Snake));
+    if(tail == NULL){
         printf("Out of memory\n");
         return NULL;
     }
 
-    head->x = x;
-    head->y = y;
-    mvwaddch(win, y, x, '#');
+    tail->x = x;
+    tail->y = y;
 
-    head = addPart(win, x, ++y, head);
-    head = addPart(win, x, ++y, head);
+    if(dir == down){
+        tail = addPart(x, ++y, tail);
+        tail = addPart(x, ++y, tail);
+    }else if(dir == up){
+        tail = addPart(x, --y, tail);
+        tail = addPart(x, --y, tail);
+    }else if(dir == left){
+        tail = addPart( --x, y, tail);
+        tail = addPart( --x, y, tail);
+    }else if(dir == right){
+        tail = addPart(++x, y, tail);
+        tail = addPart(++x, y, tail);
+    }
 
-    // head->nextPart = (Snake *) malloc(sizeof(Snake));
-    // head->x = x;
-    // head->y = ++y;
-    // mvwaddch(win, y, x, '#');
-
-    // for(int i = 0; i < 3; i++){
-    //     if(mvwinch(win, y, x) == ' ')
-    // }
-
-    // if(mvwinch(win, y, x) == ' '){
-    //     mvwaddch(win, y, x, '#');
-
-    // }
-    
-
-    return head;
+    return tail;
 }
 
-Snake *addPart(WINDOW* win, int x, int y, Snake* head){
+Snake *addPart(int x, int y, Snake* tail){
 
     Snake * prev, * current;
 
-    current = head;
+    current = tail;
 
     //Traverse to end of list
     while(current != NULL){
@@ -55,15 +53,14 @@ Snake *addPart(WINDOW* win, int x, int y, Snake* head){
         current->nextPart = NULL;
         current->x = x;
         current->y = y;
-        mvwaddch(win, y, x, '#');
     }
 
-    return head;
+    return tail;
 }
 
-Snake *deletePart(Snake **headRef, int part, WINDOW* win){ 
-    // Store head node 
-    Snake* temp = *headRef, *prev; 
+Snake *deletePart(Snake **tailRef, int part){ 
+    // Store tail node 
+    Snake* temp = *tailRef, *prev; 
     int i = 0;
     //Locate pid
     while (temp != NULL && part != i) 
@@ -75,7 +72,7 @@ Snake *deletePart(Snake **headRef, int part, WINDOW* win){
   
     // If pid not found
     if (temp == NULL){
-        printf("Could not find PID\n");
+        printf("Could not find part\n");
         return NULL;
     } 
      
@@ -90,13 +87,11 @@ Snake *deletePart(Snake **headRef, int part, WINDOW* win){
 }
 
 
-Snake* moveSnake(WINDOW* win, int x, int y, Snake** head){
+Snake* moveSnake(int x, int y, Snake** tail){
     Snake *prev, *current, *newTail;
 
-    
-    current = *head;
-    newTail = (*head)->nextPart;
-    mvwaddch(win, current->y, current->x, ' ');
+    current = *tail;
+    newTail = (*tail)->nextPart;
 
     //Traverse to end of list
     while(current != NULL){
@@ -106,25 +101,21 @@ Snake* moveSnake(WINDOW* win, int x, int y, Snake** head){
 
     //Create new node
     if(current == NULL){
-        // current = (Snake *) malloc(sizeof(Snake));
-        // prev->nextPart = current;
-        prev->nextPart = *head;
-        (*head)->x = x;
-        (*head)->y = y;
-        (*head)->nextPart = NULL;
-        // head->nextPart = NULL;
-        mvwaddch(win, y, x, '#');
+        prev->nextPart = *tail;
+        (*tail)->x = x;
+        (*tail)->y = y;
+        (*tail)->nextPart = NULL;
     }
 
     return newTail;
 
 }
 
-Snake *getTail(WINDOW* win, Snake* head){
+Snake *getHead(Snake* tail){
 
     Snake * prev, * current;
 
-    current = head;
+    current = tail;
 
     //Traverse to end of list
     while(current != NULL){

@@ -45,7 +45,7 @@ typedef struct pthread_arg_t {
 } pthread_arg_t;
 
 /* Thread routine to serve connection to client. */
-void *pthread_routine(void *arg);
+void *clientThread(void *arg);
 
 /* Signal handler to handle SIGTERM and SIGINT signals. */
 void signal_handler(int signal_number);
@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
          */
 
         /* Create thread to serve connection to client. */
-        if (pthread_create(&pthread[i], NULL, pthread_routine, &pthread_arg[i]) != 0) {
+        if (pthread_create(&pthread[i], NULL, clientThread, &pthread_arg[i]) != 0) {
             perror("pthread_create");
             // free(pthread_arg);
             continue;
@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *pthread_routine(void *arg) {
+void *clientThread(void *arg) {
     pthread_arg_t *pthread_arg = (pthread_arg_t *)arg;
     int new_socket_fd = pthread_arg->new_socket_fd;
     //struct sockaddr_in client_address = pthread_arg->client_address;

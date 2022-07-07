@@ -1,4 +1,4 @@
-#include <ncurses.h>
+// #include <ncurses.h>
 
 typedef struct snakePart{
     int x;
@@ -6,10 +6,10 @@ typedef struct snakePart{
     struct snakePart* nextPart;
 }Snake;
 
-Snake *initializeSnake(WINDOW* win, int x, int y);
+Snake *initializeSnake(int x, int y, int dir);
 
-Snake *addPart(WINDOW* win, int x, int y, Snake* head);
+Snake *addPart(int x, int y, Snake* tail);
 
-Snake* moveSnake(WINDOW* win, int x, int y, Snake** head);
+Snake* moveSnake(int x, int y, Snake** tail);
 
-Snake *getTail(WINDOW* win, Snake* head);
+Snake *getHead(Snake* tail);

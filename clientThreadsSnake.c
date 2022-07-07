@@ -6,13 +6,13 @@
 #include <ncurses.h>
 #include <signal.h>
 
-#define MAXMSG 1024
+#define MAXMSG 2048
 
 // Socket path
 char *socket_path = "\0hidden";
 enum direction{up, down, left, right};
 
-int currDir = down;
+int currDir;
 
 int main(int argc, char *argv[]) 
 {
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
          exit(1);
     }
 
-    printf("%s\n", buffer);
+    // printf("%s\n", buffer);
 
     int sizeOfMsg = strlen(buffer);
     char *temp;
@@ -91,6 +91,9 @@ int main(int argc, char *argv[])
         x= atoi(temp);
         temp = strtok(NULL, ",");
         y = atoi(temp);
+        temp = strtok(NULL, ",");
+        currDir = atoi(temp);
+        temp = strtok(NULL, ",");
     }else{
         memset(buffer, 0, MAXMSG);
         if ((n = read(fd, buffer, MAXMSG)) < 0)
@@ -99,17 +102,22 @@ int main(int argc, char *argv[])
 		    close(fd);
             exit(1);
         }
-        printf("%s\n", buffer);
+        // printf("%s\n", buffer);
         temp = strtok(buffer, ",");
         x= atoi(temp);
         temp = strtok(NULL, ",");
         y = atoi(temp);
+        temp = strtok(NULL, ",");
+        currDir = atoi(temp);
+        temp = strtok(NULL, ",");
     }
+
+
 
     currentPlayerX = x;
     currentPlayerY = y;
     
-    memset(buffer, 0, MAXMSG);
+    // memset(buffer, 0, MAXMSG);
 
     // if ((n = read(fd, buffer, 255)) < 0)
     // {
@@ -149,7 +157,14 @@ int main(int argc, char *argv[])
     // refresh
     wrefresh(arena);
 
-    mvwaddch(arena, y, x, '#');
+    
+    for(int i = 1; i < rows - 1; i++){
+        for(int j = 1; j <cols -1 ; j++){
+            mvwaddch(arena, i, j, temp[i * cols + j]);
+        }
+    }
+
+    //mvwaddch(arena, y, x, '#');
     //mvwprintw(arena, 1,1, "%d, %d", arenaMaxX, arenaMaxY);
     wrefresh(arena);
     //wgetch(arena);
@@ -167,10 +182,12 @@ int main(int argc, char *argv[])
 
     int newx, newy;
     int ch;
-    currDir = down;
+    // currDir = down;
     bool gameOver = false;
     char *snakes;
     char *fruit;
+    char *player;
+    bool waitForWrite = true;
 
     while(!gameOver){
 
@@ -209,21 +226,54 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
+        if(n == 0){
+            break;
+        }
+
+        if(strcmp(buffer, "winner") == 0 || strcmp(buffer, "loser") == 0){
+            waitForWrite = false;
+            gameOver = true;
+        }
+
+        if(!gameOver){
+
         snakes = strtok(buffer, "$");
         fruit = strtok(NULL, "$");
         //printf("%s\n", buffer);
-        temp = strtok(snakes, ",");
+        
+        // temp = strtok(snakes, ",");
+        player = strtok_r(snakes, "|", &snakes);
 
-        while(temp != NULL){
-            if(strchr(temp, '-') != NULL){
-                x= atoi(temp + 1);
-                temp = strtok(NULL, ",");
-                y = atoi(temp);
-                temp = strtok(NULL, ",");
-                mvwaddch(arena, y, x, ' ');
-                if(currentPlayerX == x && currentPlayerY == y){
-                    gameOver = true;
+        while(player != NULL){
+            temp = strtok(player, ",");
+
+            
+            if(strchr(temp, '!') != NULL){
+                ++temp;
+                while(temp != NULL){
+                    x= atoi(temp);
+                    temp = strtok(NULL, ",");
+                    y = atoi(temp);
+                    temp = strtok(NULL, ",");
+                    mvwaddch(arena, y, x, '#');
                 }
+
+            }else if(strchr(temp, '-') != NULL){
+                ++temp;
+
+                while(temp != NULL){
+                    x= atoi(temp);
+                    temp = strtok(NULL, ",");
+                    y = atoi(temp);
+                    temp = strtok(NULL, ",");
+                    mvwaddch(arena, y, x, ' ');
+
+                    if(currentPlayerX == x && currentPlayerY == y){
+                        gameOver = true;
+                    }
+                }
+
+            
             // }else if(strchr(temp, '+') != NULL){
             //     x= atoi(temp + 1);
             //     temp = strtok(NULL, ",");
@@ -233,6 +283,21 @@ int main(int argc, char *argv[])
             //     if(currentPlayerX == x && currentPlayerY == y){
             //         gameOver = true;
             //     }
+            }else if(strchr(temp, '+') != NULL){
+                x= atoi(temp + 1);
+                temp = strtok(NULL, ",");
+                y = atoi(temp);
+                temp = strtok(NULL, ",");
+                mvwaddch(arena, y, x, '#');
+                if(currentPlayerX == newx){
+                    if((currentPlayerY + 1 )== newy || (currentPlayerY - 1 )== newy ){
+                        currentPlayerY = newy;
+                    }
+                }else if(currentPlayerY == newy){
+                    if((currentPlayerX + 1 )== newx || (currentPlayerX - 1 )== newx ){
+                        currentPlayerX = newx;
+                    }
+                }
             }
             else{
                 x= atoi(temp);
@@ -246,15 +311,72 @@ int main(int argc, char *argv[])
                 newy = atoi(temp);
                 temp = strtok(NULL, ",");
 
-                if(currentPlayerX == x && currentPlayerY == y){
-                    currentPlayerX = newx;
-                    currentPlayerY = newy;
-                }
+                // if(currentPlayerX == x && currentPlayerY == y){
+                //     currentPlayerX = newx;
+                //     currentPlayerY = newy;
+                // }
 
                 mvwaddch(arena, newy, newx, '#');
-            }
+                
+                // Keep track of new head
+                if(currentPlayerX == newx){
+                    if((currentPlayerY + 1 )== newy || (currentPlayerY - 1 )== newy ){
+                        currentPlayerY = newy;
+                    }
+                }else if(currentPlayerY == newy){
+                    if((currentPlayerX + 1 )== newx || (currentPlayerX - 1 )== newx ){
+                        currentPlayerX = newx;
+                    }
+                }
 
+            }
+            
+            player = strtok_r(NULL, "|", &snakes);
         }
+
+        // temp = strtok(player, ",");
+
+        // while(temp != NULL){
+        //     if(strchr(temp, '-') != NULL){
+        //         x= atoi(temp + 1);
+        //         temp = strtok(NULL, ",");
+        //         y = atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         mvwaddch(arena, y, x, ' ');
+        //         if(currentPlayerX == x && currentPlayerY == y){
+        //             gameOver = true;
+        //         }
+        //     // }else if(strchr(temp, '+') != NULL){
+        //     //     x= atoi(temp + 1);
+        //     //     temp = strtok(NULL, ",");
+        //     //     y = atoi(temp);
+        //     //     temp = strtok(NULL, ",");
+        //     //     mvwaddch(arena, y, x, '#');
+        //     //     if(currentPlayerX == x && currentPlayerY == y){
+        //     //         gameOver = true;
+        //     //     }
+        //     }
+        //     else{
+        //         x= atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         y = atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         mvwaddch(arena, y, x, ' ');
+
+        //         newx= atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         newy = atoi(temp);
+        //         temp = strtok(NULL, ",");
+
+        //         if(currentPlayerX == x && currentPlayerY == y){
+        //             currentPlayerX = newx;
+        //             currentPlayerY = newy;
+        //         }
+
+        //         mvwaddch(arena, newy, newx, '#');
+        //     }
+
+        // }
 
         temp = strtok(fruit, ",");
         while(temp != NULL){
@@ -279,30 +401,50 @@ int main(int argc, char *argv[])
 
         }
         
+        }
+
         wrefresh(arena);
         // sleep(2);
         sleep(1);
 	
     //printf("%s\n", buffer);
     }
-    close(fd);
 
-    /* ---------------------------------------------------------------------------------
+    
+    if(waitForWrite){
+    memset(buffer, 0, MAXMSG);
 
-	// Perform read/write
-	while((rc = read(STDIN_FILENO, buffer, sizeof(buffer))) > 0) {
-	  if (write(fd, buffer, rc) != rc) {
-	    if (rc > 0) 
-		  fprintf(stderr, "partial write");
-	    else {
-		  perror("write error");
-		  exit(-1);
-	    }
-	  }
-	}
-    */
+    if ((n = read(fd, buffer, MAXMSG)) < 0){
+        perror("ERROR reading from socket");
+		close(fd);
+        delwin(arena);
+        endwin();
+        exit(1);
+    }
+    }
 
+    wclear(arena);
+
+    wrefresh(arena);
     delwin(arena);
+
+    if(strcmp(buffer, "winner") == 0){
+        // strcpy(buffer, "Congratulations! You won!\n\nPress any key to continue...");
+
+        mvprintw((maxY/2), (maxX/2) - (strlen("Congratulations! You won!")/2), "Congratulations! You won!");
+        mvprintw((maxY/2) + 2, (maxX/2) - (strlen("Press any key to continue...")/2), "Press any key to continue...");
+
+    }else{
+        // strcpy(buffer, "Sorry! You lost!\n\nPress any key to continue...");
+        mvprintw((maxY/2), (maxX/2) - (strlen("Sorry! You lost!")/2), "Sorry! You lost!");
+        mvprintw((maxY/2) + 2, (maxX/2) - (strlen("Press any key to continue...")/2), "Press any key to continue...");
+    }
+
+    close(fd);
+    
+    refresh();
+    getch();
+
     endwin();
 
 	return 0;

@@ -26,9 +26,12 @@
 
 
 #include <sys/types.h>
+#include "playerSnake.h"
 
 #define BACKLOG 50
-#define MAXMSG 1024
+#define MAXMSG 2048
+#define ROWS 20
+#define COLS 50
 
 enum direction{up, down, left, right};
 
@@ -42,9 +45,11 @@ pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex4 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mapMutex = PTHREAD_MUTEX_INITIALIZER;
 
 const int width = 20, height = 20;
 const int rows  = width, cols = width*2.5;
+char arenaMap[ROWS][COLS];
 
 typedef struct pthread_arg_t {
     int new_socket_fd;
@@ -53,7 +58,7 @@ typedef struct pthread_arg_t {
 } pthread_arg_t;
 
 /* Thread routine to serve connection to client. */
-void *pthread_routine(void *arg);
+void *clientThread(void *arg);
 
 /* Signal handler to handle SIGTERM and SIGINT signals. */
 void signal_handler(int signal_number);
@@ -145,7 +150,7 @@ int write_to_client(int filedes) {
             pthread_mutex_lock(&mutex1);
             strcat(buffer, vals[i]);
             pthread_mutex_unlock(&mutex1);
-            strcat(buffer, ",");
+            strcat(buffer, "|");
             // strcat(buffer, temp);
         }
         pthread_mutex_unlock(&mutex2);
@@ -240,67 +245,76 @@ void *spawnFruit(void* arg){
             y = random()%(rows - 2) + 1;
             // y = 1;
             valid = true;
-            for (int i = 0; i < FD_SETSIZE; ++i){
-                pthread_mutex_lock(&mutex2);
-                if (startPlayer[i]) {
-                //buffer = (char *)realloc( buffer, (strlen(buffer) + strlen(values[filedes])) * sizeof(char));
-                //sprintf(temp, "%d, ", i);
-                    memset(buffer, 0, MAXMSG);
+            
+            //---------------------------------------------------------
+            pthread_mutex_lock(&mapMutex);
+            if(arenaMap[y][x] != '#' &&  arenaMap[y][x] != '*')
+                arenaMap[y][x] = '*';
+            else valid = false;
+            pthread_mutex_unlock(&mapMutex);
+            //----------------------------------------------------------
+
+            // for (int i = 0; i < FD_SETSIZE; ++i){
+            //     pthread_mutex_lock(&mutex2);
+            //     if (startPlayer[i]) {
+            //     //buffer = (char *)realloc( buffer, (strlen(buffer) + strlen(values[filedes])) * sizeof(char));
+            //     //sprintf(temp, "%d, ", i);
+            //         memset(buffer, 0, MAXMSG);
     
-                    pthread_mutex_lock(&mutex1);
-                    strcpy(buffer, vals[i]);
-                    pthread_mutex_unlock(&mutex1);
+            //         pthread_mutex_lock(&mutex1);
+            //         strcpy(buffer, vals[i]);
+            //         pthread_mutex_unlock(&mutex1);
 
-                    if(strcmp(buffer, "snake") != 0 && strchr(buffer, '-') == NULL){
-                    temp = strtok(buffer, ",");
-                    snakeX = atoi(temp);
-                    temp = strtok(NULL, ",");
-                    snakeY = atoi(temp);
-                    temp = strtok(NULL, ",");
-                    if(temp != NULL){
-                        snakeX = atoi(temp);
+            //         if(strcmp(buffer, "snake") != 0 && strchr(buffer, '-') == NULL){
+            //         temp = strtok(buffer, ",");
+            //         snakeX = atoi(temp);
+            //         temp = strtok(NULL, ",");
+            //         snakeY = atoi(temp);
+            //         temp = strtok(NULL, ",");
+            //         if(temp != NULL){
+            //             snakeX = atoi(temp);
                         
-                        temp = strtok(NULL, ",");
-                        snakeY = atoi(temp);
-                    }
+            //             temp = strtok(NULL, ",");
+            //             snakeY = atoi(temp);
+            //         }
 
-                    if(x == snakeX && y == snakeY){
-                        valid = false;
-                        pthread_mutex_unlock(&mutex2);
-                        break;
-                    }
-                    }
+            //         if(x == snakeX && y == snakeY){
+            //             valid = false;
+            //             pthread_mutex_unlock(&mutex2);
+            //             break;
+            //         }
+            //         }
 
-                }
-                pthread_mutex_unlock(&mutex2);
+            //     }
+            //     pthread_mutex_unlock(&mutex2);
 
-                int length;
-                if(i < 100){
+            //     int length;
+            //     if(i < 100){
                     
-                    pthread_mutex_lock(&mutex3);
-                    length = strlen(fruit[i]);
-                    pthread_mutex_unlock(&mutex3);
+            //         pthread_mutex_lock(&mutex3);
+            //         length = strlen(fruit[i]);
+            //         pthread_mutex_unlock(&mutex3);
 
-                    if(length > 0){
-                        ++numOfFruit;
-                        memset(buffer, 0, MAXMSG);
+            //         if(length > 0){
+            //             ++numOfFruit;
+            //             memset(buffer, 0, MAXMSG);
 
-                        pthread_mutex_lock(&mutex3);
-                        strcpy(buffer, fruit[i]);
-                        pthread_mutex_unlock(&mutex3);
+            //             pthread_mutex_lock(&mutex3);
+            //             strcpy(buffer, fruit[i]);
+            //             pthread_mutex_unlock(&mutex3);
 
-                        temp = strtok(buffer, ",");
-                        fruitX = atoi(temp);
-                        temp = strtok(NULL, ",");
-                        fruitY = atoi(temp);
+            //             temp = strtok(buffer, ",");
+            //             fruitX = atoi(temp);
+            //             temp = strtok(NULL, ",");
+            //             fruitY = atoi(temp);
 
-                        if(x == fruitX && y == fruitY){
-                            valid = false;
-                            break;
-                        }
-                    }
-                }
-            }
+            //             if(x == fruitX && y == fruitY){
+            //                 valid = false;
+            //                 break;
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         for(int i = 0; i < 100; ++i){
@@ -325,15 +339,15 @@ void *spawnFruit(void* arg){
     }while(keepLooping);
 
     for(int i = 0; i < 100; ++i){
-            pthread_mutex_lock(&mutex3);
-            if(strlen(fruit[i]) > 0){
-                strcpy(fruit[i], "\0");
+        pthread_mutex_lock(&mutex3);
+        if(strlen(fruit[i]) > 0){
+            strcpy(fruit[i], "\0");
                 //pthread_mutex_unlock(&mutex3);
                 //printf("Generated fruit at %d, %d\n", x, y);
                 //break;
-            }
-            pthread_mutex_unlock(&mutex3);
         }
+        pthread_mutex_unlock(&mutex3);
+    }
 
     pthread_exit(NULL);
 
@@ -455,6 +469,10 @@ int main(int argc, char *argv[]) {
 
             }
 
+            for(int i = 0; i< ROWS; ++i){
+                memset(arenaMap[i], ' ', COLS);
+            }
+
             numOfThreads = 0;
             if (pthread_create(&pthread[numOfThreads], NULL, spawnFruit, NULL) != 0) {
                 perror("pthread_create_fruit");
@@ -483,7 +501,7 @@ int main(int argc, char *argv[]) {
          */
 
         /* Create thread to serve connection to client. */
-        if (pthread_create(&pthread[numOfThreads], NULL, pthread_routine, &pthread_arg[numOfThreads]) != 0) {
+        if (pthread_create(&pthread[numOfThreads], NULL, clientThread, &pthread_arg[numOfThreads]) != 0) {
             perror("pthread_create");
             // free(pthread_arg);
             continue;
@@ -519,7 +537,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *pthread_routine(void *arg) {
+void *clientThread(void *arg) {
     pthread_arg_t *pthread_arg = (pthread_arg_t *)arg;
     int new_socket_fd = pthread_arg->new_socket_fd;
     //struct sockaddr_in client_address = pthread_arg->client_address;
@@ -539,44 +557,7 @@ void *pthread_routine(void *arg) {
     int nbytes;
     memset(buffer, 0, MAXMSG);
     char *values;
-
-    // nbytes = read(new_socket_fd, buffer, MAXMSG);
-
-    // if (nbytes < 0) {
-    //     // Read error
-    //     perror("read");
-    //     close(new_socket_fd);
-    //     exit(EXIT_FAILURE);
-    // } 
-    // else if (nbytes == 0){
-    //     // End-of-file.
-    //     close(new_socket_fd);
-    //     pthread_exit(NULL);
-    // }
-    // else {
-    //     // Data read.
-    //     fprintf(stderr, "Server: got message: `%s`\n", buffer);
-
-    //     if(strcmp(buffer, "snake\n") == 0){
-
-    //         //FD_SET(filedes, &active_fd_set);
-    //         buffer[5] = '\0';
-    //         initializePlayer();
-    //         pthread_mutex_lock(&mutex2);
-    //         startPlayer[new_socket_fd] = true;
-    //         pthread_mutex_unlock(&mutex2);
-
-    //         // allowSend[filedes] = true;
-    //         // startPlayer[filedes] = true;
-    //         //return 0;
-    //     }
-
-    //     //values = (char *)malloc(MAXMSG * sizeof(char));
-    //     pthread_mutex_lock(&mutex1);
-    //     vals[new_socket_fd] = (char *)malloc(MAXMSG * sizeof(char));
-    //     strcpy(vals[new_socket_fd], buffer);
-    //     pthread_mutex_unlock(&mutex1);
-    // }
+    bool wallHit;
 
     // start snake
     if (read_from_client(new_socket_fd) < 0) {
@@ -601,87 +582,140 @@ void *pthread_routine(void *arg) {
     bool valid = false;
     int x,y;
     int length;
+    int currDir;
+    Snake *snake;
+    Snake *head;
+    bool justSpawned = true;
 
     //sleep(1);
-
-    while(!valid){
-        x = random()%(cols -1);
-        //y = random()%(rows - 1);
-        y = 1;
-        valid = true;
-        for (int i = 0; i < FD_SETSIZE; ++i){
-            pthread_mutex_lock(&mutex2);
-            if (startPlayer[i] && i != new_socket_fd) {
-            //buffer = (char *)realloc( buffer, (strlen(buffer) + strlen(values[filedes])) * sizeof(char));
-            //sprintf(temp, "%d, ", i);
-                memset(buffer, 0, MAXMSG);
+    memset(buffer, 0, MAXMSG);
     
-                pthread_mutex_lock(&mutex1);
-                strcpy(buffer, vals[i]);
-                pthread_mutex_unlock(&mutex1);
+    while(!valid){
+        x = random()%(cols -2) + 1;
+        y = random()%(rows - 2) + 1;
+        // y = 1;
+        valid = true;
 
-                char *temp;
-                int enemyX;
-                int enemyY;
+        // ----------------------------------------------------------
+        pthread_mutex_lock(&mapMutex);
+        if(arenaMap[y][x] != '#' && arenaMap[y][x] != '*'){
+            
+            if((y + 5) < (rows) && arenaMap[y + 1][x] != '#' && arenaMap[y + 2][x] != '#'){
+                arenaMap[y][x] = '#';
+                arenaMap[y+1][x] = '#';
+                arenaMap[y+2][x] = '#';
+                currDir = down;
+                sprintf(buffer, "!%d,%d,%d,%d,%d,%d", x, y, x, y+1, x, y+2);
+
+            }else if((y - 5) > 0 && arenaMap[y - 1][x] != '#' && arenaMap[y - 2][x] != '#'){
+                arenaMap[y][x] = '#';
+                arenaMap[y-1][x] = '#';
+                arenaMap[y-2][x] = '#';
+                currDir = up;
+                sprintf(buffer, "!%d,%d,%d,%d,%d,%d", x, y, x, y-1, x, y-2);
+
+            }else if((x + 5) < (cols) && arenaMap[y][x+1] != '#' && arenaMap[y][x+2] != '#'){
+                arenaMap[y][x] = '#';
+                arenaMap[y+1][x] = '#';
+                arenaMap[y+2][x] = '#';
+                currDir = right;
+                sprintf(buffer, "!%d,%d,%d,%d,%d,%d", x, y, x+1, y, x+2, y);
+
+            }else if((x - 5) > 0 && arenaMap[y][x-1] != '#' && arenaMap[y][x-2] != '#'){
+                arenaMap[y][x] = '#';
+                arenaMap[y+1][x] = '#';
+                arenaMap[y+2][x] = '#';
+                currDir = left;
+                sprintf(buffer, "!%d,%d,%d,%d,%d,%d", x, y, x-1, y, x-2, y);
+
+            }else valid = false;
+
+            //arenaMap[y][x] = '#';
+
+        }else valid = false;
+
+        pthread_mutex_unlock(&mapMutex);
+        
+        //-------------------------------------------------------------
+
+        // for (int i = 0; i < FD_SETSIZE; ++i){
+        //     pthread_mutex_lock(&mutex2);
+        //     if (startPlayer[i] && i != new_socket_fd) {
+        //     //buffer = (char *)realloc( buffer, (strlen(buffer) + strlen(values[filedes])) * sizeof(char));
+        //     //sprintf(temp, "%d, ", i);
+        //         memset(buffer, 0, MAXMSG);
+    
+        //         pthread_mutex_lock(&mutex1);
+        //         strcpy(buffer, vals[i]);
+        //         pthread_mutex_unlock(&mutex1);
+
+        //         char *temp;
+        //         int enemyX;
+        //         int enemyY;
                
-                if(strcmp(buffer, "snake") != 0 && strchr(buffer, '-') == NULL){
-                temp = strtok(buffer, ",");
-                enemyX = atoi(temp);
-                temp = strtok(NULL, ",");
-                enemyY = atoi(temp);
-                temp = strtok(NULL, ",");
-                if(temp != NULL){
-                    enemyX = atoi(temp);
-                    temp = strtok(NULL, ",");
-                    enemyY = atoi(temp);
-                }
+        //         if(strcmp(buffer, "snake") != 0 && strchr(buffer, '-') == NULL){
+        //         temp = strtok(buffer, ",");
+        //         enemyX = atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         enemyY = atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         if(temp != NULL){
+        //             enemyX = atoi(temp);
+        //             temp = strtok(NULL, ",");
+        //             enemyY = atoi(temp);
+        //         }
 
-                if(x == enemyX && y == enemyY){
-                    valid = false;
-                    pthread_mutex_unlock(&mutex2);
-                    break;
-                }
-                }
+        //         if(x == enemyX && y == enemyY){
+        //             valid = false;
+        //             pthread_mutex_unlock(&mutex2);
+        //             break;
+        //         }
+        //         }
 
-            }
-            pthread_mutex_unlock(&mutex2);
+        //     }
+        //     pthread_mutex_unlock(&mutex2);
 
-            if(i < 100){
+        //     if(i < 100){
                 
-                pthread_mutex_lock(&mutex3);
-                length = strlen(fruit[i]);
-                pthread_mutex_unlock(&mutex3);
+        //         pthread_mutex_lock(&mutex3);
+        //         length = strlen(fruit[i]);
+        //         pthread_mutex_unlock(&mutex3);
 
-                if(strlen(fruit[i]) > 0){
-                    memset(buffer, 0, MAXMSG);
+        //         if(strlen(fruit[i]) > 0){
+        //             memset(buffer, 0, MAXMSG);
 
-                    pthread_mutex_lock(&mutex3);
-                    strcpy(buffer, fruit[i]);
-                    pthread_mutex_unlock(&mutex3);
+        //             pthread_mutex_lock(&mutex3);
+        //             strcpy(buffer, fruit[i]);
+        //             pthread_mutex_unlock(&mutex3);
 
-                    char *temp;
-                    int fruitX;
-                    int fruitY;
+        //             char *temp;
+        //             int fruitX;
+        //             int fruitY;
 
-                    temp = strtok(buffer, ",");
-                    fruitX = atoi(temp);
-                    temp = strtok(NULL, ",");
-                    fruitY = atoi(temp);
+        //             temp = strtok(buffer, ",");
+        //             fruitX = atoi(temp);
+        //             temp = strtok(NULL, ",");
+        //             fruitY = atoi(temp);
 
-                    if(x == fruitX && y == fruitY){
-                        valid = false;
-                        break;
-                    }
-                }
+        //             if(x == fruitX && y == fruitY){
+        //                 valid = false;
+        //                 break;
+        //             }
+        //         }
                 
-            }
-        }
+        //     }
+        // }
     }
+
+    snake = initializeSnake(NULL, x, y, currDir);
+    head = getTail(NULL, snake);
+
+    x = head->x;
+    y = head->y;
 
     printf("Computed x and y\n");
 
-    memset(buffer, 0, MAXMSG);
-    sprintf(buffer, "%d,%d", x, y);
+    
 
     pthread_mutex_lock(&mutex1);
     vals[new_socket_fd] = (char *)malloc(MAXMSG * sizeof(char));
@@ -689,6 +723,19 @@ void *pthread_routine(void *arg) {
     pthread_mutex_unlock(&mutex1);
 
     printf("Allocated x and y\n");
+
+    //--------------------------------------------------------------------------
+    memset(buffer, 0, MAXMSG);
+    sprintf(buffer, "%d,%d,%d,", x, y, currDir);
+
+    // strcat(buffer, ",");
+    //memset(buffer, 0, MAXMSG);
+    pthread_mutex_lock(&mapMutex);
+    strcat(buffer, arenaMap[0]);
+    pthread_mutex_unlock(&mapMutex);
+    
+   
+    //------------------------------------------------------------------------
 
     if ((nbytes = write(new_socket_fd, buffer, strlen(buffer))) < 0) {
         close(new_socket_fd);
@@ -728,24 +775,27 @@ void *pthread_routine(void *arg) {
 
     char *temp2;
     char *rest;
-    int newx, newy;
-    int currDir;
+    int newx = x, newy = y;
     int gameOver = false;
     //int length = 0;
     bool eaten = false;
+    wallHit = false;
 
     // strcpy(buffer, "I got your message");
     while(!gameOver){
+
+        // Assign tail to x and y
+        x = snake->x;
+        y = snake->y;
         
-        // sleep(0.5);
+        
+        // if(!justSpawned){
 
         memset(buffer, 0, MAXMSG);
         temp2 = NULL;
         rest = NULL;
-        x = 0;
-        y = 0;
-        newx = 0;
-        newy = 0;
+        
+        eaten = false;
 
         if ((nbytes = read(new_socket_fd, &currDir, sizeof(int))) < 0) {
             close(new_socket_fd);
@@ -753,37 +803,43 @@ void *pthread_routine(void *arg) {
             exit(EXIT_FAILURE);
         }
 
-        pthread_mutex_lock(&mutex1);
-        //vals[new_socket_fd] = (char *)malloc(MAXMSG * sizeof(char));
-        strcpy(buffer, vals[new_socket_fd]);
-        pthread_mutex_unlock(&mutex1);
+        if(nbytes == 0){
+
+            gameOver = true;
+            // break;
+        }
+
+        // pthread_mutex_lock(&mutex1);
+        // //vals[new_socket_fd] = (char *)malloc(MAXMSG * sizeof(char));
+        // strcpy(buffer, vals[new_socket_fd]);
+        // pthread_mutex_unlock(&mutex1);
 
         //temp2 = strtok(buffer, ",");
         rest = buffer;
         temp2 = strtok_r(rest, ",", &rest);
 
-        x= atoi(temp2);
-        // temp2 = strtok(NULL, ",");
-        temp2 = strtok_r(rest, ",", &rest);
-        y = atoi(temp2);
-        // temp2 = strtok(NULL, ",");
-        temp2 = strtok_r(rest, ",", &rest);
-        if(temp2 != NULL){
-            newx = atoi(temp2);
-            // temp2 = strtok(NULL, ",");
-            temp2 = strtok_r(rest, ",", &rest);
-            newy = atoi(temp2);
+        // x= atoi(temp2);
+        // // temp2 = strtok(NULL, ",");
+        // temp2 = strtok_r(rest, ",", &rest);
+        // y = atoi(temp2);
+        // // temp2 = strtok(NULL, ",");
+        // temp2 = strtok_r(rest, ",", &rest);
+        // if(temp2 != NULL){
+        //     newx = atoi(temp2);
+        //     // temp2 = strtok(NULL, ",");
+        //     temp2 = strtok_r(rest, ",", &rest);
+        //     newy = atoi(temp2);
 
-            x = newx;
-            y = newy;
+        //     x = newx;
+        //     y = newy;
 
-            // sprintf(buffer, "%d,%d,%d,%d", newx, newy, newx, newy + 1);
-        }else{
+        //     // sprintf(buffer, "%d,%d,%d,%d", newx, newy, newx, newy + 1);
+        // }else{
 
-            newx = x;
-            newy = y;
-            // sprintf(buffer, "%d,%d,%d,%d", x, y, x, y + 1);
-        }
+        //     newx = x;
+        //     newy = y;
+        //     // sprintf(buffer, "%d,%d,%d,%d", x, y, x, y + 1);
+        // }
 
         switch(currDir){
             case up: 
@@ -792,7 +848,10 @@ void *pthread_routine(void *arg) {
 		            --newy;
                     
                 }
-                else gameOver = true;
+                else {
+                    gameOver = true; 
+                    wallHit = true;
+                }
                 break;
 
             case down:
@@ -800,7 +859,10 @@ void *pthread_routine(void *arg) {
                     //mvwaddch(arena, y, x, ' ');
 		            ++newy;
                 }
-                else gameOver = true;
+                else {
+                    gameOver = true; 
+                    wallHit = true;
+                }
 	        break;
 
             case left:
@@ -808,7 +870,10 @@ void *pthread_routine(void *arg) {
                     //mvwaddch(arena, y, x, ' ');
 		            --newx;
                 }
-                else gameOver = true;
+                else{
+                    gameOver = true; 
+                    wallHit = true;
+                }
 	        break;
 
             case right:
@@ -816,53 +881,69 @@ void *pthread_routine(void *arg) {
                     //mvwaddch(arena, y, x, ' ');
 		            ++newx;
                 }
-                else gameOver = true;
+                else {
+                    gameOver = true; 
+                    wallHit = true;
+                }
 	        break;
 
             default: break;
         }
 
         //check collision
-        
-        for (int i = 0; i < FD_SETSIZE; ++i){
-            pthread_mutex_lock(&mutex2);
-            if (startPlayer[i] && i != new_socket_fd) {
-            //buffer = (char *)realloc( buffer, (strlen(buffer) + strlen(values[filedes])) * sizeof(char));
-            //sprintf(temp, "%d, ", i);
-                memset(buffer, 0, MAXMSG);
-    
-                pthread_mutex_lock(&mutex1);
-                strcpy(buffer, vals[i]);
-                pthread_mutex_unlock(&mutex1);
 
-                char *temp;
-                int enemyX;
-                int enemyY;
-               
-                if(strcmp(buffer, "snake") != 0 && strchr(buffer, '-') == NULL){
-                temp = strtok(buffer, ",");
-                enemyX = atoi(temp);
-                temp = strtok(NULL, ",");
-                enemyY = atoi(temp);
-                temp = strtok(NULL, ",");
-                if(temp != NULL){
-                    enemyX = atoi(temp);
-                    temp = strtok(NULL, ",");
-                    enemyY = atoi(temp);
-                }
-
-                if(newx == enemyX && newy == enemyY){
-                    gameOver = true;
-                    pthread_mutex_unlock(&mutex2);
-                    break;
-                }
-                }
-
-            }
-            pthread_mutex_unlock(&mutex2);
+        //---------------------------------------------------
+        pthread_mutex_lock(&mapMutex);
+        if(arenaMap[newy][newx] == '#'){
+            gameOver = true;
+        }else if(arenaMap[newy][newx] == '*'){
+            eaten = true;
+            // pthread_mutex_lock(&mutex3);
+            // strcpy(fruit[i], "\0");
+            // pthread_mutex_unlock(&mutex3);
         }
+        pthread_mutex_unlock(&mapMutex);
+        //---------------------------------------------------
+        
+        // for (int i = 0; i < FD_SETSIZE; ++i){
+        //     pthread_mutex_lock(&mutex2);
+        //     if (startPlayer[i] && i != new_socket_fd) {
+        //     //buffer = (char *)realloc( buffer, (strlen(buffer) + strlen(values[filedes])) * sizeof(char));
+        //     //sprintf(temp, "%d, ", i);
+        //         memset(buffer, 0, MAXMSG);
+    
+        //         pthread_mutex_lock(&mutex1);
+        //         strcpy(buffer, vals[i]);
+        //         pthread_mutex_unlock(&mutex1);
 
-        if(!gameOver){
+        //         char *temp;
+        //         int enemyX;
+        //         int enemyY;
+               
+        //         if(strcmp(buffer, "snake") != 0 && strchr(buffer, '-') == NULL){
+        //         temp = strtok(buffer, ",");
+        //         enemyX = atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         enemyY = atoi(temp);
+        //         temp = strtok(NULL, ",");
+        //         if(temp != NULL){
+        //             enemyX = atoi(temp);
+        //             temp = strtok(NULL, ",");
+        //             enemyY = atoi(temp);
+        //         }
+
+        //         if(newx == enemyX && newy == enemyY){
+        //             gameOver = true;
+        //             pthread_mutex_unlock(&mutex2);
+        //             break;
+        //         }
+        //         }
+
+        //     }
+        //     pthread_mutex_unlock(&mutex2);
+        // }
+
+        if(!gameOver && eaten){
             for (int i = 0; i < 100; ++i){
                 pthread_mutex_lock(&mutex3);
                 length = strlen(fruit[i]);
@@ -885,7 +966,7 @@ void *pthread_routine(void *arg) {
                     fruitY = atoi(temp);
 
                     if(newx == fruitX && newy == fruitY){
-                        eaten = true;
+                        //eaten = true;
                         pthread_mutex_lock(&mutex3);
                         strcpy(fruit[i], "\0");
                         pthread_mutex_unlock(&mutex3);
@@ -897,11 +978,37 @@ void *pthread_routine(void *arg) {
         }
 
         if(gameOver){
-            sprintf(buffer, "-%d,%d", x, y);
+            char part[10];
+            memset(buffer, 0, MAXMSG);
+            strcat(buffer, "-");
+
+            while(snake != NULL){
+                sprintf(part, "%d,%d,", snake->x, snake->y);
+                strcat(buffer, part);
+                pthread_mutex_lock(&mapMutex);
+                arenaMap[snake->y][snake->x] = ' ';
+                pthread_mutex_unlock(&mapMutex);
+                snake = snake->nextPart;
+            }
+            // sprintf(buffer, "-%d,%d", x, y);
+
+            // pthread_mutex_lock(&mapMutex);
+            // arenaMap[y][x] = ' ';
+            // pthread_mutex_unlock(&mapMutex);
+
         // }else if(eaten){
         //     sprintf(buffer, "+%d,%d", newx, newy);
         }else{
+            
+            
             sprintf(buffer, "%d,%d,%d,%d", x, y, newx, newy);
+
+            pthread_mutex_lock(&mapMutex);
+            arenaMap[newy][newx] = '#';
+            arenaMap[y][x] = ' ';
+            pthread_mutex_unlock(&mapMutex);
+
+            snake = moveSnake(NULL, newx, newy, &snake);
         }
         
 
@@ -912,16 +1019,22 @@ void *pthread_routine(void *arg) {
         strcpy(vals[new_socket_fd], buffer);
         pthread_mutex_unlock(&mutex1);
 
-         sleep(0.5);
     
+        // End of JustSpawned --------------------------------------
+        // }
         
+        sleep(0.5);
 
-      if (write_to_client(new_socket_fd) < 0) {
-      close(new_socket_fd);
-      pthread_exit(NULL);
+        if(!gameOver || wallHit){
 
-        // sleep(1);
-    }
+            if (write_to_client(new_socket_fd) < 0) {
+                close(new_socket_fd);
+                pthread_exit(NULL);
+
+            }
+        }
+
+        if(justSpawned) justSpawned = false;
 
       // sleep(1);
 
@@ -954,6 +1067,8 @@ void *pthread_routine(void *arg) {
     //     exit(EXIT_FAILURE);
     // }
 
+    // x = newx;
+    // y = newy;
     
     }
 
